@@ -19,32 +19,97 @@
   <body>
     <header>
       <div class="inner">
-        <h1>Sherif on Tech</h1>
-        <h2>Sherif&#39;s Blog</h2>
-        <a href="https://github.com/srgoogleguy/sr_googleguy.github.io" class="button"><small>View project on</small> GitHub</a>
+        <h1>Sherif&#39;s Tech Blog</h1>
+        <a href="http://blog.sheriframadan.com" class="button">
+            <small>blog.sheriframadan.com</small>
+            Home
+        </a>
       </div>
     </header>
 
     <div id="content-wrapper">
       <div class="inner clearfix">
         <section id="main-content">
-          <h3>
-            <a id="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages" aria-hidden="true"><span class="octicon octicon-link"></span></a>Welcome to my Blog!
-          </h3>
+          <h2>
+            <a id="webSAT" class="anchor" href="webSAT.html" aria-hidden="true">
+                <span class="octicon octicon-link"></span>
+                webSAT: Web Server Analytics and Telemetry Library
+            </a>
+          </h2>
 
           <p>
-            For those of you who used to follow my blog regularly, you may have noticed it went down for a while. To all my readers, I sincerely appologize for the inconvenience.
-            The VPS I used to host my old blog on had a irrocverable hardware failure and I lost all my data. So I've decided to use Github Pages to host my new blog instead!
+            If you don't already have a dashboard monitoring your website's performance and giving
+            you key insights into what you can't anticipate then you're missing half of the picture!
           </p>
+          <p>
+            One of the most important things you should know about how your site is performing is
+            your TTFB (<em>Time To First Byte</em>). This is the time taken from the moment your
+            web server receives a request from the client, to the moment the webserver begins
+            sending back the first byte of the response to the client. Measuring this number can
+            be done quite simply in Apache httpd using the
+            <a href="http://code.google.com/p/mod-log-firstbyte/" target="_blank">mod_log_firstbyte
+            module</a>.
+            This allows you to log the time, in microseconds, for first byte of the response in your
+            web server's access log. However, simply thorwing this metric into an access log file
+            that's out of sight also keeps it out of mind and thus becomes less useful to you.
+            In order for this information to give you any real insight into how your web site is
+            performing on a regular basis it must be monitored and presented in a digestable manner.
+          </p>
+          <p>
+            One of the easiest ways to look such information is on a graph. This makes it easier for
+            your brain to absorb and comprehend the bigger picture with a single galnce. You're not
+            likely going to be staring at this graph all day long so it should be updated on a near-
+            time or real time basis. Making it useful for the occosional darted glance.
+          </p>
+          <p>
+            There are many ways you could do this. You could go out and find a turn-key solution
+            that does all of these things for you, or you could <em>roll your own</em>.
+          </p>
+          <p>
+            Since I write code and solve problems for a living, I decided to tackle this challenge
+            myself. It turns out this is not nearly as complicated of a task as it may appear.
+            The most critical piece is actually just collecting the data and doing the aggregation.
+            There are plenty of free open-source and paid solutions to putting it all on a sexy
+            looking dashboard (e.g. <a href="http://www.chartjs.org/" target="_blank">chartjs</a> or
+            <a href="https://www.geckoboard.com/" target="_blank">geckoboard</a>).
+          </p>
+          <p>
+            So in this article I'm going to explain how I came up with the
+            <a href="https://www.github.com/srgoogleguy/webSAT" target="_blank">webSAT</a>
+            library, which makes it possible for you to collect such data for real time analytics
+            from one or even thousands of servers with very little code, setup, or maintainence
+            cost.
+          </p>
+          
+          <p><em><a href="webSAT.html">Read more...</a></em></p>
+
+          <hr/>
+          <h2>
+            <a id="welcome" class="anchor" href="#welcome" aria-hidden="true">
+                <span class="octicon octicon-link"></span>
+                Welcome to my Blog!
+            </a>
+          </h2>
+
+          <p>
+            For those of you who used to follow my blog regularly, you may have noticed it went down
+            for a while. To all my readers, I sincerely appologize for the inconvenience. The VPS I
+            used to host my old blog on had an irrocverable hardware failure and I lost all my data.
+            So I've decided to use Github Pages to host my new blog instead!
+          </p>
+
 
         </section>
 
         <aside id="sidebar">
-          <p class="repo-owner">This <a href="https://github.com/srgoogleguy/sr_googleguy.github.io">Blog</a> is maintained by <a href="https://github.com/srgoogleguy">srgoogleguy</a>.</p>
+          <p class="repo-owner">
+            <a href="https://github.com/srgoogleguy" class="button">
+                My GitHub
+            </a>
+          </p>
         </aside>
       </div>
     </div>
 
-  
   </body>
 </html>

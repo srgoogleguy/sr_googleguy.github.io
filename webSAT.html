@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>webSAT: Web Server Analytics and Telemetry Library - blog.sheriframadan.com</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Sherif&#39;s Tech Blog</h1>
+        <a href="http://blog.sheriframadan.com" class="button">
+            <small>blog.sheriframadan.com</small>
+            Home
+        </a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h2>
+            <a id="webSAT" class="anchor" href="#webSAT" aria-hidden="true">
+                <span class="octicon octicon-link"></span>
+                webSAT: Web Server Analytics and Telemetry Library
+            </a>
+          </h2>
+
+          <p>
+            If you don't already have a dashboard monitoring your website's performance and giving
+            you key insights into what you can't anticipate then you're missing half of the picture!
+          </p>
+          <p>
+            One of the most important things you should know about how your site is performing is
+            your TTFB (<em>Time To First Byte</em>). This is the time taken from the moment your
+            web server receives a request from the client, to the moment the webserver begins
+            sending back the first byte of the response to the client. Measuring this number can
+            be done quite simply in Apache httpd using the
+            <a href="http://code.google.com/p/mod-log-firstbyte/" target="_blank">mod_log_firstbyte
+            module</a>.
+            This allows you to log the time, in microseconds, for first byte of the response in your
+            web server's access log. However, simply thorwing this metric into an access log file
+            that's out of sight also keeps it out of mind and thus becomes less useful to you.
+            In order for this information to give you any real insight into how your web site is
+            performing on a regular basis it must be monitored and presented in a digestable manner.
+          </p>
+          <p>
+            One of the easiest ways to look such information is on a graph. This makes it easier for
+            your brain to absorb and comprehend the bigger picture with a single galnce. You're not
+            likely going to be staring at this graph all day long so it should be updated on a near-
+            time or real time basis. Making it useful for the occosional darted glance.
+          </p>
+          <p>
+            There are many ways you could do this. You could go out and find a turn-key solution
+            that does all of these things for you, or you could <em>roll your own</em>.
+          </p>
+          <p>
+            Since I write code and solve problems for a living, I decided to tackle this challenge
+            myself. It turns out this is not nearly as complicated of a task as it may appear.
+            The most critical piece is actually just collecting the data and doing the aggregation.
+            There are plenty of free open-source and paid solutions to putting it all on a sexy
+            looking dashboard (e.g. <a href="http://www.chartjs.org/" target="_blank">chartjs</a> or
+            <a href="https://www.geckoboard.com/" target="_blank">geckoboard</a>).
+          </p>
+          <p>
+            So in this article I'm going to explain how I came up with the
+            <a href="https://www.github.com/srgoogleguy/webSAT" target="_blank">webSAT</a>
+            library, which makes it possible for you to collect such data for real time analytics
+            from one or even thousands of servers with very little code, setup, or maintainence
+            cost.
+          </p>
+          
+          <h3>
+            <a id="webSAT-mod-log-firstbyte" class="anchor" href="#webSAT-mod-log-firstbyte" aria-hidden="true">
+                mod_log_firstbyte
+            </a>
+          </h3>
+          <p>
+            The first thing you're going to want to do is compile and install mod_log_first_byte on
+            your Apache httpd web server. You can get the source from
+            <a href="http://code.google.com/p/mod-log-firstbyte/" target="_blank">Google Code</a>
+            and run <code>apxs2 -c mod_log_firstbyte.c</code>,
+            <code>apxs2 -i -a mod_log_firstbyte.la</code> then restart httpd.
+          </p>
+          <p>
+            Once you've confirmed that the module is loaded in your httpd server you can modify
+            your Vhost or default mod_log directives to include the <code>%F</code> option, which
+            will log the TTFB in microseconds with each request line.
+          </p>
+          <p>
+            After you've confirmed this information is being saved to your access log file (<em>a
+            restart of your httpd server is required for the configuration changes to take effect
+            </em>) we can then explore a simple way to collect the data.
+          </p>
+          <h3>
+            <a id="webSAT-zeromq" class="anchor" href="#webSAT-zeromq" aria-hidden="true">
+            ZeroMQ
+            </a>
+          </h3>
+          <p>
+            ZeroMQ is basically just a library that allows you to design embeddable queues within
+            your application. With this we have an easy way to move data in and out of our PHP
+            script with a low-latency link. This has the added benefit of making it possible to
+            collect data from multiple remote web servers and the advantage of not having to deal
+            directly with raw-sockets.
+          </p>
+          <p>
+            Because Apache httpd allows us to open a pipe directly from its log facility for writing
+            we can easily write a PHP script that reads directly from STDIN and writes directly to
+            a ZeroMQ socket (acting as a transparent proxy for collecting our access log data).
+          </p>
+          <pre>
+            <code>
+            #!/usr/bin/php
+            &lt;?php
+            $zmqContext = new ZMQContext;
+            $zmqSocket =  new ZMQSocket($zmqContext, ZMQ::SOCKET_PUSH);    
+            $zmqSocket->connect("tcp://127.0.0.1:5555");
+            
+            while ($msg = fgets(STDIN)) {
+                $zmqSocket->send($msg);
+            }
+            </code>
+          </pre>
+          <p>
+            The sample code above can be stored in a script called <code>log.php</code> and used to
+            collect the data by adding the following in your Vhost file...
+          </p>
+          <pre>
+            <code>
+CustomLog "|/path/to/log.php" "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %F"
+            </code>
+          </pre>
+          <p>
+              This will tell httpd to open a pipe to your PHP script and write log data to STDIN,
+              instead of treating it like a normal file. Your PHP script then reads data from STDIN
+              and ships it off to the ZeroMQ socket.
+          </p>
+          <h3>
+            <a id="webSAT-php" class="anchor" href="#webSAT-php" aria-hidden="true">
+            PHP
+            </a>
+          </h3>
+          <p>
+            The next step is to start collecting this data we're writing to the ZeroMQ socket and do
+            something useful with it, like aggregate the TTFB for each request in order to calculate
+            your TTFB average.
+          </p>
+          <pre>
+            <code>
+&lt;?php
+$zmqContext = new ZMQContext;
+$zmqSocket =  new ZMQSocket($zmqContext, ZMQ::SOCKET_PULL);    
+$zmqSocket->bind("tcp://127.0.0.1:5555");
+
+$ttfb = $requests = 0;
+
+while ($msg = $zmqSocket->recv()) {
+    if (preg_match("@(\d+)$@", $msg, $matches)) {
+        $ttfb += (int)$matches[1];
+        $requests++;
+        printf("Average TTFB %d usec @ %d requests...\n", 
+                                                          $ttfb / $requests,
+                                                          $requests);
+    }
+}
+            </code>
+          </pre>
+          <p>
+            Here we are binding to the listening end of the ZeroMQ socket we were connecting to from
+            the <code>log.php</code> script. We simply parse the each request log line to extract
+            the TTFB value and add it up to get the aggregate value. Let's call this script <code>
+            aggregate.php</code> and run it after restarting httpd. Now just make a few requests
+            to your web server and you should start seeing the TTFB average in your terminal.
+          </p>
+          <h3>
+            <a id="webSAT-memcached" class="anchor" href="#webSAT-memcached" aria-hidden="true">
+            Memcached
+            </a>
+          </h3>
+          <p>
+            Of course none of this information is really useful unless we can store it somewhere
+            for future analysis. You have a few options, but for high-load environments you want to
+            be very congniscent of the impact that writing this data will have on your storage
+            mechanism of choice.
+          </p>
+          <p>
+            Memcached is an ephemeral key-value store, so that means you stand to lose this data if
+            your memcached server goes down. More permanent storage options could be Redis, which
+            can write your data to disk, or something like HDFS, which might prove as a more
+            resilient distributed storage. I chose Memcached purely for pragmatic reasons since
+            the intent of this project was not to introduce new or unfamiliar things into the stack,
+            but rather focus on making use of already existing technologies within the typical LAMP
+            stack. There are effective ways to dump your memcached data to disk, which we will
+            explore later in this article.
+          </p>
+          <p>
+            First, you will need to consider the way in which you derive the keys for writing your
+            data to memcached. This operation needs to be as atomic as possible, for performance
+            reasons. One of the simplest ways to look at this is to consider the time-series
+            approach of recording metrics over time. You have a well-defined set of metrics that
+            you'd like to track, and you know the timestamp of when each metric was recorded from
+            the access log. All that's left is to abstract away the logic for doing so.
+          </p>
+          <p>
+            We can do this by composing a key of 3 parts with each access log line received by our
+            consumer worker. First, we use a constant prefix that allows us to identify all of the
+            keys in memcached that are related to this time series data. Second, we map the
+            individual attributes of each access log line (such as request time, TTFB, IP, etc...)
+            to a unique metric identifier. Third, we append a Unix timestamp to each of these keys
+            and delimit them by a common character for future decomposition.
+          </p>
+          <p>The resulting function would look something like this...</p>
+          <pre>
+              <code>
+const MEMCACHED_PREFIX = 'webAnalytics';
+
+function generateMemcachedKey($metric, $timestamp)
+{
+    return MEMCACHED_PREFIX . '.' . $metric . '.' . strtotime($timestamp);
+}
+              </code>
+          </pre>
+          <p>
+            Your key should then appear something like <code>webAnalytics.TTFB.1432685706</code>,
+            so decomposing this key should be as trivial as the following function...
+          </p>
+          <pre>
+              <code>
+function decomposeMemcachedKey($key)
+{
+    list($prefix, $metric, $timestamp) = explode('.', $key);
+
+    return [
+        'prefix'    => $prefix,
+        'metric'    => $metric,
+        'timestamp' => date('c', $timestamp),
+    ];
+}
+              </code>
+          </pre>          
+          <p>
+            Since we're aggregating this data on write, it should be a very fast and efficient
+            process. The atomic nature of key-loops aids this process quite a bit. Consider that
+            in order to find out what your average TTFB was during the last hour all you really need
+            to know is the <code>SUM</code> of TTFB and <code>SUM</code> of number of requests
+            recorded by your access log over for all timestamps spanning the last hour. Given our
+            current key structure, writing a function look up all of this data in Memcached becomes
+            rather straight-forward...
+          </p>
+          <pre>
+            <code>
+function getKeysInRange(DateTime $startRange, DateTime $endRange, $metricName) {
+    $interval = new DateInterval('PT1M');
+    $period = new DatePeriod($startRange, $interval, $endRange);
+    $keys = [];
+    
+    foreach ($period as $dateTime) {
+        $keys[] = generateMemcachedKey($metricName,$dateTime->getTimestamp());
+    }
+    
+    return $keys;
+}
+            </code>
+          </pre>
+          <p>
+            Now you can call <code>Memcached::getMulti()</code> on the list of keys provided by this
+            function for your <em>TTFB</em> and <em>Requests</em> metrics and divide TTFB over
+            number of Requests in order to arrive at your average TTFB value.
+          </p>
+          <p>
+            You can write these values in roughly the same manner. One thing you need to be mindful
+            of here at what granularity you aggregate the values and how that impacts performance.
+            For example, say you have a high-traffic site that's getting several thousand requests
+            per second during peak hours. If you record timestamps at 1 second intervals in
+            memcached, you'd easily reach tens of thousands of keys per metric, per day. The cost
+            of creating those keys, writing to them, updating them, and reading them back in real
+            time might become a problem.
+          </p>
+          <p>
+            What I've found is that in the greater majority of uses cases, you hardly ever care
+            about aggregated data at such a fine granularity. Usually the questions you're trying
+            to answer about your site's performance are much more macro than that. So typically
+            using an interval granularity of 1 minute is pretty reasonable. At this level you
+            will have no more than 1440 keys per day, per metric, whether you're getting one request
+            per second or one thousand requests per second. This is also very efficient because now
+            your keys boil down to serving just a few primary functions (namely <code>SUM</code>,
+            <code>AVERAGE</code>, <code>MAX</code>, or <code>MIN</code>). When you look at it this
+            way the data only serves you to know the total, average, or min/max aggregate values of
+            each metric at any given time.
+          </p>
+          <p>
+            A few factors of optimization to consider are use <code>Memcached::increment()</code>
+            instead of <code>Memcached::set()</code> whenever possible. Avoid making too many
+            frequent set calls in order to avoid corrupting your data. Of course, Memcached does
+            offer a CaS (<em>Check and Set</em>) feature, which allows you to check the most recent
+            value in the Memcached store before updating/setting its value, in order to avoid tricky
+            race conditions, where you need to first read the value and then update it based on
+            current value, but why bother with the performance cost? All you really care about are
+            the deltas. The difference between what's there now and what was there before.
+          </p>
+          <p>Here's a simple example of updating your keys as the data comes in...</p>
+          <pre>
+            <code>
+/* Assume we have an incoming TTFB value of 500 (in usec) */
+$value = 500;
+/* Make sure our timestamps are normalized to 00 seconds always */
+$dateTime = new DateTime('now');
+$timestamp = $dateTime->setTime($dateTime->format('H'), $dateTime->format('i'), 0)->getTimestamp();
+
+/* Aggregate the TTFB metric */
+$key = generateMemcachedKey('TTFB', $timestamp);
+$memcached->increment($key, $value);
+
+/* Aggregate the Request metric */
+$key = generateMemcachedKey('Request', $timestamp);
+$memcached->increment($key, 1);
+            </code>
+          </pre>
+          <p>
+            Here all we care about is the fact that we have received 1 more request than whatever
+            we had before for the given timestamp (to a 1 minute granularity), and an added TTFB
+            value of 500 microseconds more than whatever we had before. Now when we ask the question
+            "<em>What is the average TTFB value for this 1 minute?</em>" the answer is simpel to
+            derive from the sum and total of TTFB keys for that minute (in our case just one key,
+            which is already the sum of all requests for that minute), dividied by the sum and toal
+            of request keys for that minute (again just one representing the sum of number of
+            requests during that minute).
+          </p>
+
+        </section>
+
+        <aside id="sidebar">
+          <p class="repo-owner">
+            <a href="https://github.com/srgoogleguy" class="button">
+                My GitHub
+            </a>
+          </p>
+        </aside>
+      </div>
+    </div>
+
+  </body>
+</html>
